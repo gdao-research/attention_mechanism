@@ -6,7 +6,7 @@ class RandomMatrix:
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def get_2d_array(self):
+    def __call__(self):
         raise NotImplementedError('Abstract method')
 
 
