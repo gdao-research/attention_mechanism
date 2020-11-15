@@ -38,7 +38,7 @@ from attention_mechanism.performer import Performer, PerformerLM
 from attention_mechanism.lamda_layer import LambdaLayer
 ```
 
-## [Vision Transformer](https://openreview.net/pdf?id=xTJEN-ggl1b)
+## [Vision Transformer](https://arxiv.org/pdf/2010.11929.pdf)
 ```python
 from attention_mechanism.vision_transformer import VisionTransformer
 ```
