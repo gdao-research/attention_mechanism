@@ -22,7 +22,7 @@ class MultiHeadAttention(tfkl.Layer):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
-    def call(self, v, k, q, mask):
+    def call(self, v, k, q, mask=None):
         batch_size = tf.shape(q)[0]
         q = self.split_heads(self.wq(q), batch_size)
         k = self.split_heads(self.wk(k), batch_size)
@@ -54,8 +54,9 @@ class SelfAttention(tf.keras.Model):
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
     # TODO: add mask to the computation
-    def call(self, x, training=True):
+    def call(self, x, mask=None, training=True):
         # q, k, v: (n+3)dims -- B, L1, L2, ..., Ln, H*D
+        # mask: batch of sequence of 0/1 -- 0 is for over length sequence
         q = self.wq(x)
         k = self.wq(x)
         v = self.wv(x)
@@ -67,6 +68,9 @@ class SelfAttention(tf.keras.Model):
         q = self.split_heads(q, qshape[0], self.heads, qshape[-1]//self.heads)
         k = self.split_heads(k, kshape[0], self.heads, kshape[-1]//self.heads)
         v = self.split_heads(v, vshape[0], self.heads, vshape[-1]//self.heads)
+
+        if mask:
+            k = k*mask
 
         out = self.fast_attention(q, k, v)
         # out: (n+3)dims -- B, L1, L2, ..., Ln, H*D

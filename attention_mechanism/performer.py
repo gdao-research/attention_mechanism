@@ -18,28 +18,28 @@ class Performer(tf.keras.Model):
         self.reversible = reversible
         self.fn = ReversibleSequence(blocks) if reversible else SequentialSequence(blocks)
 
-    def call(self, x, training=True):
-        return self.fn(x, training=training)
+    def call(self, x, mask=None, training=True):
+        return self.fn(x, mask, training=training)
 
-    def backward_grads_and_vars(self, x, y, dy, training=True):
+    def backward_grads_and_vars(self, x, y, dy, mask=None, training=True):
         # only use when using ReversibleSequence
-        dx, grads_all, vars_all = self.fn.backward_grads_and_vars(x, y, dy, training=training)
+        dx, grads_all, vars_all = self.fn.backward_grads_and_vars(x, y, dy, mask=None, training=training)
         return dx, grads_all, vars_all
 
     @tf.function
-    def to_train(self, x, y, loss_fn, training=True, **kwargs):
+    def to_train(self, x, y, loss_fn, mask=None, training=True, **kwargs):
         if not self.reversible:
             with tf.GradientTape() as tape:
-                logit = self(x, training=training)
+                logit = self(x, mask, training=training)
                 loss = loss_fn(y, logit, **kwargs)
             grads_all = tape.gradient(loss, self.trainable_variables)
             vars_all = self.trainable_variables
         else:
             with tf.GradientTape() as tape:
-                logit = self(x, training=training)
+                logit = self(x, mask, training=training)
                 loss = loss_fn(y, logit, **kwargs)
             dy = tape.gradient(loss, logit)
-            _, grads_all, vars_all = self.backward_grads_and_vars(x, logit, dy, training=training)
+            _, grads_all, vars_all = self.backward_grads_and_vars(x, logit, dy, mask, training=training)
         return zip(grads_all, vars_all)
 
 
@@ -55,11 +55,11 @@ class PerformerLM(tf.keras.Model):
         self.norm = tfkl.LayerNormalization()
         self.dense = tfkl.Dense(n_tokens)
 
-    def embed(self, x, training=True):
+    def embed(self, x, mask=None, training=True):
         b, n = x.shape
         x = self.token_emb(x)
         x += self.pos_emb(tf.range(n))
-        out = self.dropout(x, training=training)
+        out = self.dropout(x, mask, training=training)
         return out
 
     def final_out(self, x):
@@ -67,19 +67,19 @@ class PerformerLM(tf.keras.Model):
         logit = self.dense(norm_out)
         return logit
 
-    def call(self, x, training=True):
+    def call(self, x, mask=None, training=True):
         # x: language 2D -- B, N
         x = self.embed(x, training=training)
-        performer_out = self.performer(x, training=training)
+        performer_out = self.performer(x, mask, training=training)
         norm_out = self.norm(x)
         logit = self.dense(norm_out)
         return logit
 
     @tf.function
-    def to_train(self, x, y, loss_fn, training=True, **kwargs):
+    def to_train(self, x, y, loss_fn, mask=None, training=True, **kwargs):
         if not self.reversible:
             with tf.GradientTape() as tape:
-                logit = self(x, training=training)
+                logit = self(x, mask, training=training)
                 loss = loss_fn(y, logit, **kwargs)
             grads_all = tape.gradient(loss, self.trainable_variables)
             vars_all = self.trainable_variables
@@ -88,14 +88,14 @@ class PerformerLM(tf.keras.Model):
             vars_all = []
             with tf.GradientTape(persistent=True) as tape:
                 embed_out = self.embed(x, training=training)
-                per_out = self.performer(embed_out, training=training)
+                per_out = self.performer(embed_out, mask, training=training)
                 logit = self.final_out(per_out)
                 loss = loss_fn(y, logit, **kwargs)
             grads = tape.gradient(loss, [per_out] + self.norm.trainable_variables + self.dense.trainable_variables)
             dper_out = grads[0]
             grads_all += grads[1:]
             vars_all += self.norm.trainable_variables + self.dense.trainable_variables
-            dembed_out, grads_per_out, vars_per_out = self.performer.backward_grads_and_vars(embed_out, per_out, dper_out, training=training)
+            dembed_out, grads_per_out, vars_per_out = self.performer.backward_grads_and_vars(embed_out, per_out, dper_out, mask, training=training)
             grads_all += grads_per_out
             vars_all += vars_per_out
             rest_grads = tape.gradient(embed_out, self.token_emb.trainable_variables + self.pos_emb.trainable_variables, output_gradients=dembed_out)
