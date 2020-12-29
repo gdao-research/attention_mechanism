@@ -1,6 +1,6 @@
 # Attention Mechanisms
 
-An implementation of multiple notable attention mechanisms using TensorFlow 2.3
+An implementation of multiple notable attention mechanisms using TensorFlow 2.
 
 ## [ReZero](https://arxiv.org/pdf/2003.04887.pdf)
 ```python
